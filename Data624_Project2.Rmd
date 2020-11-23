@@ -1,0 +1,136 @@
+---
+title: "Data624_Project2"
+author: "Vijaya Cherukuri, Samantha Deokinanan, Priya Shaji, Habib Khan"
+date: "11/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+#### This is role playing.  I am your new boss.  I am in charge of production at ABC Beverage and you are a team of data scientists reporting to me.  My leadership has told me that new regulations are requiring us to understand our manufacturing process, the predictive factors and be able to report to them our predictive model of PH. Please use the historical data set I am providing.  Build and report the factors in BOTH a technical and non-technical report.  I like to use Word and Excel.  Please provide your non-technical report in a  business friendly readable document and your predictions in an Excel readable format.   The technical report should show clearly the models you tested and how you selected your final approach.
+
+#### Please submit both Rpubs links and .rmd files or other readable formats for technical and non-technical reports.  Also submit the excel file showing the prediction of your models for pH.
+
+### Libraries Required
+
+```{r}
+library(caret)
+library(readxl)
+library(corrplot)
+library(ggplot2)
+library(DataExplorer)
+```
+
+# Load Data
+
+### Load the datasets StudentData.xlsx and StudentEvaluation.xlsx
+
+```{r}
+tempfile_1 <- tempfile(fileext = ".xlsx")
+tempfile_2 <- tempfile(fileext = ".xlsx")
+#Load StudentData dataset
+download.file(url = "https://github.com/vijay564/DATA624/blob/master/StudentData.xlsx?raw=true", 
+              destfile = tempfile_1, 
+              mode = "wb", 
+              quiet = TRUE)
+train_df <- readxl::read_excel(tempfile_1,skip=0) #read in as tibble
+train_df <- data.frame(train_df) # convert to dataframe
+#Load StudentEvaluation dataset
+download.file(url = "https://github.com/vijay564/DATA624/blob/master/StudentEvaluation.xlsx?raw=true", 
+              destfile = tempfile_2, 
+              mode = "wb", 
+              quiet = TRUE)
+test_df <- readxl::read_excel(tempfile_2,skip=0)
+test_df <- data.frame(test_df)
+```
+
+# Data Exploration
+
+#### We have 33 variables and 2571 observations on StudentData dataset
+
+```{r}
+dim(train_df)
+```
+
+```{r}
+summary(train_df)
+```
+
+> We can see that apart from Brach Code rest all are numeric values
+
+#### We have 33 variables and 267 observations on StudentEvaluation dataset
+
+```{r}
+dim(test_df)
+```
+
+```{r}
+summary(test_df)
+```
+
+#### Histogram to check skeweness
+
+```{r}
+
+plot_histogram(train_df)
+```
+
+> Based on above graph we can observe that only some of the variables are skewed. Some variables have outliers.
+
+#### Correlation
+
+```{r}
+corrplot(as.matrix(cor(subset(train_df, select = -c(Brand.Code)), use = "pairwise.complete")),method = "circle")
+```
+
+> The above graph suggests there there is high multi collinearity
+
+#### Outliers
+
+```{r}
+ggplot(data = reshape2::melt(train_df) , aes(x=variable, y=value)) + 
+geom_boxplot(fill = 'deeppink4') +
+  labs(title = 'Boxplot: Scaled Training Set',
+       x = 'Variables',
+       y = 'Normalized_Values')+
+  theme(panel.background = element_rect(fill = 'grey'),axis.text.x=element_text(size=10, angle=90))
+```
+> Based on above graph we can see that most of the variables are skewed and some vaiables have outliers. 
+
+# Data Preparation
+
+### Missing data
+#### Check if we have missing data on the dataset
+
+```{r}
+library(Amelia)
+missmap(train_df, col = c("red", "lightgreen"))
+```
+
+> There are some missing values in the dataset.If we deeply observe some variables have lot of missing vales where some does not have any missing values.
+
+```{r}
+#Remove character field Brach Code
+modified_df <- data.matrix(train_df[,-1])
+```
+
+
+#### Impute missing values
+
+```{r}
+processed_train_df <- preProcess(modified_df, method = c("bagImpute"))
+processed_train_df
+student_traindf_preprocessed <-  predict(processed_train_df, modified_df)
+```
+
+
+#### After imputations check if there is any missing data
+
+```{r}
+missmap(as.data.frame(student_traindf_preprocessed), col = c("red", "lightgreen"))
+```
+
