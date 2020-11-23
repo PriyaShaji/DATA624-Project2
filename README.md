@@ -2,7 +2,7 @@ CUNY MSDS DATA 624 Project #2
 
 Collaborators:
 
-[Vijaya Cherukuri]()  
+[Vijaya Cherukuri](https://github.com/vijay564)  
 [Samantha Deokinanan](https://github.com/greeneyefirefly)  
 [Priya Shaji]()  
 [Habib Khan]()  
