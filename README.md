@@ -4,5 +4,5 @@ Collaborators:
 
 [Vijaya Cherukuri](https://github.com/vijay564)  
 [Samantha Deokinanan](https://github.com/greeneyefirefly)  
-[Priya Shaji]()  
-[Habib Khan]()  
+[Priya Shaji](https://github.com/)  
+[Habib Khan](https://github.com/habibkhan89)  
