@@ -1,29 +1,27 @@
 ---
 title: "DATA 624 - Predictive Analytics"
 subtitle: 'Fall 2020 - Project #2'
-date: "12/12/2020"
-output:
-  pdf_document: default
+author: Vijaya Cherukuri, Samantha Deokinanan, Priya Shaji, Habib Khan
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  pdf_document:
+    toc: TRUE
+    toc_depth: 4
 urlcolor: purple
+abstract: "An analysis of ABC Beverage to determine the pH level of the beverages and evaluate the accuracy of the predictive model with rigorous statistical testings."
 ---
-
-AUTHORS:
-[Vijaya Cherukuri](https://github.com/vijay564)  
-[Samantha Deokinanan](https://github.com/greeneyefirefly)  
-[Priya Shaji](https://github.com/PriyaShaji)  
-[Habib Khan](https://github.com/habibkhan89)  
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=FALSE, error=FALSE, warning=FALSE, message=FALSE, fig.align="center")
 ```
 
-### Overview
+### OVERVIEW
 
 Due to new regulations by ABC Beverage, the company leadership requires that the production team have a better understand of the manufacturing process, the predictive factors and their relationship to the pH of the beverages. Therefore, this project is an effort to find the optimal predictive variables related to the pH of the beverages and evaluate the accuracy of the predictive model for pH of beverages with rigorous statistical testing.
 
 The selection of a method depends on many factors - the context of the predictions, the relevance of the historical data given, the degree of accuracy, etc. As a result, these factors are cross-validated and examined for the potentially greater accuracy model at minimal cost.
 
-### R Packages
+### R PACKAGES
 
 The statistical tool that will be used to fascinate in the modeling of the data is `R`. The main packages used for data wrangling, visualization, and graphics are listed in the `Code Appendix`. Any other minor packages for analysis will be listed when needed.
 
@@ -36,10 +34,10 @@ library(caret)
 library(mice)
 library(corrplot)
 library(xgboost)
-library(caretEnsemble)
+library(Cubist)
 ```
 
-### Data Exploration
+### DATA EXPLORATION 
 
 The data set is a historic data containing predictors associated to the pH and is provided in an excel file. We will utilize this historic data set to analyze and predict the pH of beverages. 
 
@@ -69,32 +67,29 @@ download.file(url =  paste0(urlRemote, pathGithub, fileTest, "?raw=true"),
               destfile = tempfile_2, 
               mode = "wb", 
               quiet = TRUE)
-test_df = data.frame(readxl::read_excel(tempfile_2,skip=0))
+eval_df = data.frame(readxl::read_excel(tempfile_2,skip=0))
 
 # Number of training observations
 ntrobs = dim(train_df)[[1]]
 
 # Transform Brand.Code to factor
 train_df$Brand.Code = as.factor(train_df$Brand.Code)
-test_df$Brand.Code = as.factor(test_df$Brand.Code)
+eval_df$Brand.Code = as.factor(eval_df$Brand.Code)
 ```
 
 #### Predictive Variables
 
-There are `r ntrobs` observations of 32 numeric predictor variables and 1 factor predictor variables, namely `Brand.Code`. The training data is composed of the following variables:
-
-```{r train_variables}
-names(train_df) %>% kable(caption = "List of Possible Predictive Variables")
-```
+There are `r ntrobs` observations of 32 numeric predictor variables and 1 factor predictor variables, namely `Brand.Code`. All other variables provides measurements for the manufacturing process of each brand of beverage.
 
 ##### Summary Statistic
 
-Based on the summary statistic for each beverage brand, we made some initial observations. The data set does not have complete cases, thus, there is a need for imputation. Some variables are highly skewed, such as `MFR`, `Temperature`, and `Oxygen.Filler`, which will need data transformation to satisfy the assumption of normality. Lastly, the `Hyd.Pressure` variables appear to be near-zero variance predictors given that zero account for more than 30% of these variables. Such zero variance predictor will never be chosen for a split since it offers no possible predictive information.
+Based on the summary statistic for the beverage brands, we made some initial observations. The data set does not have complete cases, thus, there is a need for imputation. Some variables are highly skewed, such as `MFR`, `Temperature`, and `Oxygen.Filler`, which will need data transformation to satisfy the assumption of normality. Lastly, the `Hyd.Pressure` variables appear to be near-zero variance predictors given that zero account for more than 30% of these variables. Such zero variance predictor will never be chosen for a split since it offers no possible predictive information.
 
 \small
 ```{r sumstat}
-describe(train_df) %>% kable(caption = "Descriptive Statistics for All Brand Code",
-                             digit = 2L)
+kable(describe(train_df)[,-c(1,6,7)], 
+      caption = "Descriptive Statistics for All Brand Code",
+      digit = 2L)
 ```
 \normalsize
 
@@ -124,7 +119,10 @@ for (i in 2:33){
   temp = rbind(temp, c(names(train_df)[i],
                              length(boxplot(train_df[i], plot = FALSE)$out)))
 }
-temp[-1,] %>% kable(caption = "Predictive Variables with Outlier")
+remove = apply(temp, 1, function(row) all(row !=0 )) 
+temp = na.omit(temp[remove,])
+row.names(temp) = NULL
+kable(temp, caption = "Predictive Variables with Outlier")
 
 ggplot(data = reshape2::melt(train_df) , aes(x = variable, y = value)) + 
 geom_boxplot(fill = 'deeppink4') +
@@ -139,10 +137,10 @@ geom_boxplot(fill = 'deeppink4') +
 
 The corrgram below graphically represents the correlations between the numeric predictor variables, when ignoring the missing variables. Most of the numeric variables are uncorrelated with one another, but there are a few highly correlated. 
 
-```{r corrgram, fig.width=7, fig.height=7}
+```{r corrgram, fig.width=6, fig.height=6}
 corrplot::corrplot(cor(train_df[,-1], use = 'complete.obs'),
          method = 'ellipse', type = 'lower', order = 'hclust',
-         hclust.method = 'ward.D2')
+         hclust.method = 'ward.D2', tl.cex = 0.7)
 ```
 
 Moreover, to build a smaller model without predictors with extremely high correlations, it is best to reduce the number of predictors such that there are no absolute pairwise correlations above 0.90. The list below shows only significant correlations (at 5% level) for the top 10 highest correlations by the correlation coefficient. The results show that these ten have a correlation of greater than 0.95.
@@ -152,7 +150,8 @@ corr = cor(train_df[,-1], use = 'complete.obs')
 corr[corr == 1] = NA 
 corr[abs(corr) < 0.90] = NA 
 corr = na.omit(reshape::melt(corr))
-head(corr[order(-abs(corr$value)),], 10) %>% kable(caption = "Top 10 Highly Correlated Predictor Candidates")
+kable(head(corr[order(-abs(corr$value)),], 10), 
+      caption = "Top 10 Highly Correlated Predictor Candidates")
 ```
 
 #### Target Variable (pH)
@@ -168,7 +167,7 @@ train_df %>%
   labs(y = 'Count', title = 'pH Levels in Dataset') 
 ```
 
-### Data Preparation
+### DATA PREPARATION
 
 #### Pre-Processing of Predictors
 
@@ -183,16 +182,16 @@ predictors = nearZeroVar(train_df_cleaned)
 train_df_cleaned = train_df_cleaned[,-predictors]
 
 # Evaluation set
-processed_test_df = mice(test_df, method = 'pmm', print = FALSE)
-test_df_cleaned = complete(processed_test_df)
+processed_eval_df = mice(eval_df, method = 'pmm', print = FALSE)
+eval_df_cleaned = complete(processed_eval_df)
 
-predictors = nearZeroVar(test_df_cleaned)
-test_df_cleaned = test_df_cleaned[,-predictors]
+predictors = nearZeroVar(eval_df_cleaned)
+eval_df_cleaned = eval_df_cleaned[,-predictors]
 ```
 
 #### Correlation 
 
-Next, to filter out highly correlated predictors, we remove those that have an absolute correlation coefficient greater than 0.90. 
+Next, to filter out highly correlated predictors, we remove those that have an absolute correlation coefficient greater than 0.90. This resulted in 25 of the 32 predictor variables are kept
 
 ```{r corr_clean}
 # Train set
@@ -200,8 +199,8 @@ tooHigh = findCorrelation(cor(train_df_cleaned[,-1]), 0.90)
 train_df_cleaned = train_df_cleaned[, -tooHigh]
 
 # Evaluation set
-tooHigh = findCorrelation(cor(test_df_cleaned[,-1]), 0.90)
-test_df_cleaned = test_df_cleaned[, -tooHigh]
+tooHigh = findCorrelation(cor(eval_df_cleaned[,-1]), 0.90)
+eval_df_cleaned = eval_df_cleaned[, -tooHigh]
 ```
 
 #### Normality
@@ -214,8 +213,8 @@ processed_train_df = preProcess(train_df_cleaned[,-1], method = c("YeoJohnson"))
 train_df_cleaned[,-1] =  predict(processed_train_df, train_df_cleaned[,-1])
 
 # Evaluation set
-processed_test_df = preProcess(test_df_cleaned[,-1], method = c("YeoJohnson"))
-test_df_cleaned[,-1] =  predict(processed_test_df, test_df_cleaned[,-1])
+processed_eval_df = preProcess(eval_df_cleaned[,-1], method = c("YeoJohnson"))
+eval_df_cleaned[,-1] =  predict(processed_eval_df, eval_df_cleaned[,-1])
 ```
 
 ### Training & Testing Split
@@ -237,7 +236,7 @@ train.r = train_df_cleaned$PH[intrain]
 test.r = train_df_cleaned$PH[-intrain]
 ```
 
-### Building the Models
+### BUILDING THE MODELS
 
 #### Model #1: Baseline Model
 
@@ -250,124 +249,109 @@ kable(summary(baseline)$coefficients, digits = 3L,
       caption = 'Model 1 - Baseline Linear Regression Output')
 ```
 
-We can immediately see that a few variables exceed the 0.05 p-value threshold for significance. This baseline model also only account for 39.7% of the variability of the data.
+We can immediately see that a few variables exceed the 0.05 p-value threshold for significance. The intercept itself suggests that with no information on the manufracting processes,a beverage is likely to have a pH balance of a killer 486! This baseline model also only account for 39.7% of the variability of the data. Clearly, there is a need for a better model.
 
-#### Model #2: XGB
+#### Model #2: Multivariate Adaptive Regression Splines (MARS)
 
-Gradient boosting trees model is originally proposed by Friedman et al. The underlying algorithm of XGBoost is similar, specifically it is an extension of the classic gbm algorithm. By employing multi-threads and imposing regularization, XGBoost is able to utilize more computational power and get more accurate prediction. Please refer to this tutorial for the details of the model.
+MARS is an algorithm that essentially creates a piecewise linear model which provides an intuitive stepping block into non-linearity after grasping the concept of linear regression and other intrinsically linear models. Two tuning parameters associated with the MARS model is done to identify the optimal combination of these hyperparameters that minimize prediction error.
 
-
-```{r xgb.Tree, eval=false}
+```{r mars}
 set.seed(525) 
-# Convert sets into DMatrixes
-train.p.xgb = xgb.DMatrix(as.matrix(train.p[,-1]))
-train.r.xgb = train.r
-test.p.xgb = xgb.DMatrix(as.matrix(test.p[,-1]))
-test.r.xgb = test.r
-
-# Grid
-xgb.tree.grid = expand.grid(eta = c(.01), 
-                            nrounds = c(1000), 
-                            max_depth = c(6), 
-                            gamma = c(0), 
-                            colsample_bytree = c(.8),
-                            min_child_weight = c(.8),
-                            subsample = c(.8))
-
-xgb.dart.grid = expand.grid(eta = c(.01), 
-                            nrounds = c(1000), 
-                            gamma = c(.1), 
-                            skip_drop = c(.6), 
-                            rate_drop = c(.4), 
-                            max_depth = c(6), 
-                            colsample_bytree = c(.6), 
-                            min_child_weight = c(.6), 
-                            subsample = c(.6))
-
-# Tuning fits
-tuning_list = list(caretModelSpec(method = "xgbTree", tuneGrid = xgb.tree.grid),
-                   caretModelSpec(method = "xgbDART", tuneGrid = xgb.dart.grid))
-
-# Cross-validation method 
-trcontrol = trainControl(method = 'cv',
-                         number = 5,
-                         savePredictions = 'final',
-                         index = createFolds(train.r.xgb, 5),
-                         allowParallel = TRUE) 
-# 
-xgb_list = caretList(x = train.p.xgb,
-                     y = train.r.xgb,
-                     trControl = trcontrol,
-                     tuneList = tuning_list)
+marsGrid = expand.grid(.degree = 1:2,
+                       .nprune = 2:38) 
+marsModel = train(x = train.p, 
+                  y = train.r, 
+                  method = "earth", 
+                  tuneGrid = marsGrid, 
+                  trControl = trainControl(method = "cv", 
+                                           number = 10))
+```
+```{r mars.fig, fig.height=4, fig.width=8}
+plot(marsModel, main = "RMSE of MARS Model")
 ```
 
-### Model Selection
+RMSE was used to select the optimal MARS model using the smallest value. The best tune for the MARS model which resulted in the smallest root mean squared error is with 2 degrees of interactions and the number of retained terms of 31. It has RMSE = 0.126, and $R^2$ = 0.463. In this case, it does account for the largest portion of the variability in the data than all other variables, and it produces the smallest error. 
+
+#### Model #3: Cubist
+
+Cubist is a prediction-oriented regression model that initially creates a tree structure, and then collapses each path through the tree into a rule. A regression model is fit for each rule based on the data subset defined by the rules. The collection of rules are pruned or combined, and the candidate variables for the models are the predictors that were pruned away. 
+
+```{r cubist}
+set.seed(525)
+cubModel = train(x = train.p,
+                  y = train.r,
+                  method = "cubist",
+                  tuneLength = 10,
+                  trControl = trainControl(method = "cv", 
+                                           repeats = 5))
+```
+```{r cub.fig, fig.height=4, fig.width=8}
+plot(cubModel, main = "RMSE of Cubist Tree Model")
+```
+
+RMSE was used to select the optimal model using the smallest value. The best tune for the cubist model which resulted in the smallest root mean squared error is with 20 committees and correct the prediction using the 9-nearest neighbors. It has RMSE = 0.117, and $R^2$ = 0.558. In this case, it does account for the largest portion of the variability in the data than all other variables, and it produces the smallest error which makes it the best fit.
+
+<--- BUILD ANY ADDITIONAL MODEL HERE --->
+THE MORE THE MERRIER, ADD PERFORMANCE METRIC BELOW
+
+#### Model #4:
+
+#### Model #5:
+
+#### Model #6:
+
+
+### MODEL EVALUATION
 #### Model Selection Criteria
 
 In order to select the best model to make predictions, we looked at the following goodness of fit metrics:
 
  1. \(R^2\), which represents the proportion of the variance explained by the model
  2. *Root Mean Squared Error* (RMSE), which is the square root of the mean squared difference between the observation and the fitted value.
- 3. MIGHT CHANGE TO MAE *Akaike Information Criterion* (AIC), which is an information-criteria based  estimate of the Kullback-Leibler divergence from the current model to the "true" model. One of the nice results of the theory of information-criteria based measures is that there is included recognition of parsimony.
- 
-We will look at RMSE and \(R^2\) as our metrics and select the model which performs best on both. If no model performs best on both, the AIC of the model results on the training set will be used to break the tie, as the AIC is an estimate of the average out-of-sample performance of the model. The remaining 20% of the historical data (i.e. predictors `test.p` and response `test.r`) will be used to determine the model performance.
+ 3. *Mean Absolute Error* (MAE), which is the average of all absolute errors. Absolute Error is the amount of error in the measurements. It is the difference between the measured value and 'true' value.
+
+We will look at \(R^2\) and RMSE as our metrics and select the model which performs best on both. If no model performs best on both, the MAE of the model results on the training set will be used to break the tie. The remaining 20% of the historical data (i.e. predictors `test.p` and response `test.r`) will be used to determine the model performance.
 
 The table below highlights the performance criteria of all the models built. It is evident that
 
 ```{r compTable}
-compTable = data.table(Models = c("Baseline", 
-                                  "XGB - Tree",
-                                  "XGB - Dart"),   # =--- add model names here
-                       R2 = double(6), 
-                       RMSE = double(6),
-                       TrainAIC = double(6))
+set.seed(525)
+marsPred = predict(marsModel, newdata = test.p)
+cubPred = predict(cubModel , newdata = test.p)
+
+compTable = data.frame(rbind(MARS = postResample(pred = marsPred, obs = test.r),
+                             CUBIST = postResample(pred = cubPred, obs = test.r)))
+                             
+kable(compTable, caption = "Performance Metric for All Models")
 ```
 
-```{r validateBaseline}
-# Model 1: Baseline
-# Prediction
-baseline.pred = round(predict(baseline, newdata = test.p))
-# Accuracy Statistics
-compTable[1, 2] = R2(baseline.pred, test.r)
-compTable[1, 3] = RMSE(baseline.pred, test.r)
-compTable[1, 4] = MAE(baseline.pred, test.r)
-```
+#### Variable Importances
 
-```{r validateXGB_Tree, eval=false}
-# Model 2 - XGB Tree
-# Prediction
-xgb.tree.pred = round(predict(xgb.tree, newdata = test.p.xgb))
-# Accuracy Statistics
-compTable[2, 2] = R2(xgb.tree.pred, test.r.xgb)
-compTable[2, 3] = RMSE(xgb.tree.pred, test.r.xgb)
-compTable[2, 4] = MAE(xgb.tree.pred, test.r.xgb)
-```
+<--- ADD ANY OTHER FACTOR THAT CAN BE USE TO SELECT THE BEST MODEL --->
 
-```{r validateXGB_Dart, eval=false}
-# Model 3 - XGB Dart
-# Prediction
-xgb.dart.pred = round(predict(xgb.dart, newdata = test.p.xg))
-# Accuracy Statistics
-compTable[3, 2] = R2(xgb.dart.pred, test.r.xgb)
-compTable[3, 3] = RMSE(xgb.dart.pred, test.r.xgb)
-compTable[3, 4] = MAE(xgb.dart.pred, test.r.xgb)
-```
+### MODEL SELECTION
 
 
-### Model Test Results
+### PREDICTION RESULT
 
 Based on the performance test, it was decided that the `BEST MODEL HERE` model is the optimal model. With the test set data processed identically to the training set, it will be used to make the pH prediction of beverages given the evaluation data. Since the number of cases needs to be integral the predicted values will be rounded to the nearest integer.
 
 
 #### Save pH Predictions
 
-train_df_cleaned is the cleaned evaluation set
+eval_df_cleaned is the cleaned evaluation set
 
-#### Works Cited
+### CONCLUSION
 
- 1. https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html
+### WORKS CITED
 
-### Code Appendix
+ 1. Yeo, I., & Johnson, R. (2000). A New Family of Power Transformations to Improve Normality or Symmetry. Biometrika, 87(4), 954–959. Retrieved November 26, 2020, from http://www.jstor.org/stable/2673623
+
+ 2. Max Kuhn and Kjell Johnson. Applied Predictive Modeling. Springer, New York, 2013.
+ 
+ 3.
+
+### CODE APPENDIX
 
 ```{r setup2, include=FALSE}
 knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
@@ -376,8 +360,6 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```{r rpackages}
 ```
 ```{r loaddata}
-```
-```{r train_variables}
 ```
 ```{r sumstat}
 ```
@@ -401,13 +383,16 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 ```{r baseline}
 ```
-```{r xgb.Tree, eval=false}
+```{r mars}
+```
+```{r mars.fig, fig.height=4, fig.width=8}
+```
+```{r cubist}
+```
+```{r cub.fig, fig.height=4, fig.width=8}
 ```
 ```{r compTable}
 ```
-```{r validateBaseline}
-```
-```{r validateXGB_Tree, eval=false}
-```
-```{r validateXGB_Dart, eval=false}
-```
+
+
+<--- ADD NAME OF CODE CHUNK HERE TO PRINT AT THE END --->
