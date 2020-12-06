@@ -102,7 +102,7 @@ describe(train_df) %>% kable(caption = "Descriptive Statistics for All Brand Cod
 
 The graph below indicates the amount of missing data the training data contains. It appears that more than 8% of the missing data is from the `MFR` variable. This further suggest that 79% are complete. There are no missingness patterns, and their overall proportion is not extreme. This is good because for some imputation methods, such as certain types of multiple imputations, having fewer missingness patterns is helpful, as it requires fitting fewer models.
 
-```{r}
+```{r missing}
 na.counts = as.data.frame(((sapply(train_df, function(x) sum(is.na(x))))/nrow(train_df))*100)
 names(na.counts) = "counts"
 na.counts = cbind(variables = rownames(na.counts), data.frame(na.counts, row.names = NULL))
@@ -308,7 +308,7 @@ In order to select the best model to make predictions, we looked at the followin
 
  1. \(R^2\), which represents the proportion of the variance explained by the model
  2. *Root Mean Squared Error* (RMSE), which is the square root of the mean squared difference between the observation and the fitted value.
- 3. *Akaike Information Criterion* (AIC), which is an information-criteria based  estimate of the Kullback-Leibler divergence from the current model to the "true" model. One of the nice results of the theory of information-criteria based measures is that there is included recognition of parsimony.
+ 3. MIGHT CHANGE TO MAE *Akaike Information Criterion* (AIC), which is an information-criteria based  estimate of the Kullback-Leibler divergence from the current model to the "true" model. One of the nice results of the theory of information-criteria based measures is that there is included recognition of parsimony.
  
 We will look at RMSE and \(R^2\) as our metrics and select the model which performs best on both. If no model performs best on both, the AIC of the model results on the training set will be used to break the tie, as the AIC is an estimate of the average out-of-sample performance of the model. The remaining 20% of the historical data (i.e. predictors `test.p` and response `test.r`) will be used to determine the model performance.
 
@@ -333,7 +333,7 @@ compTable[1, 3] = RMSE(baseline.pred, test.r)
 compTable[1, 4] = MAE(baseline.pred, test.r)
 ```
 
-```{r validateXGB_Tree}
+```{r validateXGB_Tree, eval=false}
 # Model 2 - XGB Tree
 # Prediction
 xgb.tree.pred = round(predict(xgb.tree, newdata = test.p.xgb))
@@ -343,7 +343,7 @@ compTable[2, 3] = RMSE(xgb.tree.pred, test.r.xgb)
 compTable[2, 4] = MAE(xgb.tree.pred, test.r.xgb)
 ```
 
-```{r validateXGB_Dart}
+```{r validateXGB_Dart, eval=false}
 # Model 3 - XGB Dart
 # Prediction
 xgb.dart.pred = round(predict(xgb.dart, newdata = test.p.xg))
@@ -377,7 +377,37 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 ```{r loaddata}
 ```
+```{r train_variables}
+```
 ```{r sumstat}
 ```
+```{r missing}
+```
 ```{r outliers}
+```
+```{r corrgram, fig.width=7, fig.height=7}
+```
+```{r corr}
+```
+```{r tragetviz}
+```
+```{r impute}
+```
+```{r corr_clean}
+```
+```{r normality}
+```
+```{r trainTestSplit}
+```
+```{r baseline}
+```
+```{r xgb.Tree, eval=false}
+```
+```{r compTable}
+```
+```{r validateBaseline}
+```
+```{r validateXGB_Tree, eval=false}
+```
+```{r validateXGB_Dart, eval=false}
 ```
