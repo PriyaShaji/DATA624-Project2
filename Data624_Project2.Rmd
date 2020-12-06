@@ -5,8 +5,10 @@ author: Vijaya Cherukuri, Samantha Deokinanan, Priya Shaji, Habib Khan
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: 
   pdf_document:
+    keep_tex: true
+    df_print: kable
     toc: TRUE
-    toc_depth: 4
+    toc_depth: 3
 urlcolor: purple
 abstract: "An analysis of ABC Beverage to determine the pH level of the beverages and evaluate the accuracy of the predictive model with rigorous statistical testings."
 ---
@@ -87,7 +89,7 @@ Based on the summary statistic for the beverage brands, we made some initial obs
 
 \small
 ```{r sumstat}
-kable(describe(train_df)[,-c(1,6,7)], 
+kable(describe(train_df)[,-c(1,6,7,13)], 
       caption = "Descriptive Statistics for All Brand Code",
       digit = 2L)
 ```
@@ -321,7 +323,7 @@ cubPred = predict(cubModel , newdata = test.p)
 
 compTable = data.frame(rbind(MARS = postResample(pred = marsPred, obs = test.r),
                              CUBIST = postResample(pred = cubPred, obs = test.r)))
-                             
+
 kable(compTable, caption = "Performance Metric for All Models")
 ```
 
