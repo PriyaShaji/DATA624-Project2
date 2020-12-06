@@ -1,136 +1,383 @@
 ---
-title: "Data624_Project2"
-author: "Vijaya Cherukuri, Samantha Deokinanan, Priya Shaji, Habib Khan"
-date: "11/20/2020"
-output: html_document
+title: "DATA 624 - Predictive Analytics"
+subtitle: 'Fall 2020 - Project #2'
+date: "12/12/2020"
+output:
+  pdf_document: default
+urlcolor: purple
 ---
 
+AUTHORS:
+[Vijaya Cherukuri](https://github.com/vijay564)  
+[Samantha Deokinanan](https://github.com/greeneyefirefly)  
+[Priya Shaji](https://github.com/PriyaShaji)  
+[Habib Khan](https://github.com/habibkhan89)  
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo=FALSE, error=FALSE, warning=FALSE, message=FALSE, fig.align="center")
 ```
 
-# Overview
+### Overview
 
-#### This is role playing.  I am your new boss.  I am in charge of production at ABC Beverage and you are a team of data scientists reporting to me.  My leadership has told me that new regulations are requiring us to understand our manufacturing process, the predictive factors and be able to report to them our predictive model of PH. Please use the historical data set I am providing.  Build and report the factors in BOTH a technical and non-technical report.  I like to use Word and Excel.  Please provide your non-technical report in a  business friendly readable document and your predictions in an Excel readable format.   The technical report should show clearly the models you tested and how you selected your final approach.
+Due to new regulations by ABC Beverage, the company leadership requires that the production team have a better understand of the manufacturing process, the predictive factors and their relationship to the pH of the beverages. Therefore, this project is an effort to find the optimal predictive variables related to the pH of the beverages and evaluate the accuracy of the predictive model for pH of beverages with rigorous statistical testing.
 
-#### Please submit both Rpubs links and .rmd files or other readable formats for technical and non-technical reports.  Also submit the excel file showing the prediction of your models for pH.
+The selection of a method depends on many factors - the context of the predictions, the relevance of the historical data given, the degree of accuracy, etc. As a result, these factors are cross-validated and examined for the potentially greater accuracy model at minimal cost.
 
-### Libraries Required
+### R Packages
 
-```{r}
+The statistical tool that will be used to fascinate in the modeling of the data is `R`. The main packages used for data wrangling, visualization, and graphics are listed in the `Code Appendix`. Any other minor packages for analysis will be listed when needed.
+
+```{r rpackages}
+# Required R packages
+library(tidyverse)
+library(kableExtra)
+library(psych)
 library(caret)
-library(readxl)
+library(mice)
 library(corrplot)
-library(ggplot2)
-library(DataExplorer)
+library(xgboost)
+library(caretEnsemble)
 ```
 
-# Load Data
+### Data Exploration
 
-### Load the datasets StudentData.xlsx and StudentEvaluation.xlsx
+The data set is a historic data containing predictors associated to the pH and is provided in an excel file. We will utilize this historic data set to analyze and predict the pH of beverages. 
 
-```{r}
-tempfile_1 <- tempfile(fileext = ".xlsx")
-tempfile_2 <- tempfile(fileext = ".xlsx")
-#Load StudentData dataset
-download.file(url = "https://github.com/vijay564/DATA624/blob/master/StudentData.xlsx?raw=true", 
+```{r loaddata}
+# Set master seed
+set.seed(52508)
+
+# Set filepaths for data ingestion
+urlRemote  = "https://github.com/"
+pathGithub = "greeneyefirefly/DATA624-Project2/blob/main/"
+fileTrain = "StudentData.xlsx"
+fileTest = "StudentEvaluation.xlsx"
+
+# Read training file
+tempfile_1 = tempfile(fileext = ".xlsx")
+tempfile_2 = tempfile(fileext = ".xlsx")
+
+# Load training dataset
+download.file(url = paste0(urlRemote, pathGithub, fileTrain, "?raw=true"), 
               destfile = tempfile_1, 
               mode = "wb", 
               quiet = TRUE)
-train_df <- readxl::read_excel(tempfile_1,skip=0) #read in as tibble
-train_df <- data.frame(train_df) # convert to dataframe
-#Load StudentEvaluation dataset
-download.file(url = "https://github.com/vijay564/DATA624/blob/master/StudentEvaluation.xlsx?raw=true", 
+train_df = data.frame(readxl::read_excel(tempfile_1,skip=0))
+
+# Load test dataset
+download.file(url =  paste0(urlRemote, pathGithub, fileTest, "?raw=true"), 
               destfile = tempfile_2, 
               mode = "wb", 
               quiet = TRUE)
-test_df <- readxl::read_excel(tempfile_2,skip=0)
-test_df <- data.frame(test_df)
+test_df = data.frame(readxl::read_excel(tempfile_2,skip=0))
+
+# Number of training observations
+ntrobs = dim(train_df)[[1]]
+
+# Transform Brand.Code to factor
+train_df$Brand.Code = as.factor(train_df$Brand.Code)
+test_df$Brand.Code = as.factor(test_df$Brand.Code)
 ```
 
-# Data Exploration
+#### Predictive Variables
 
-#### We have 33 variables and 2571 observations on StudentData dataset
+There are `r ntrobs` observations of 32 numeric predictor variables and 1 factor predictor variables, namely `Brand.Code`. The training data is composed of the following variables:
 
-```{r}
-dim(train_df)
+```{r train_variables}
+names(train_df) %>% kable(caption = "List of Possible Predictive Variables")
 ```
 
+##### Summary Statistic
+
+Based on the summary statistic for each beverage brand, we made some initial observations. The data set does not have complete cases, thus, there is a need for imputation. Some variables are highly skewed, such as `MFR`, `Temperature`, and `Oxygen.Filler`, which will need data transformation to satisfy the assumption of normality. Lastly, the `Hyd.Pressure` variables appear to be near-zero variance predictors given that zero account for more than 30% of these variables. Such zero variance predictor will never be chosen for a split since it offers no possible predictive information.
+
+\small
+```{r sumstat}
+describe(train_df) %>% kable(caption = "Descriptive Statistics for All Brand Code",
+                             digit = 2L)
+```
+\normalsize
+
+##### Missing Data
+
+The graph below indicates the amount of missing data the training data contains. It appears that more than 8% of the missing data is from the `MFR` variable. This further suggest that 79% are complete. There are no missingness patterns, and their overall proportion is not extreme. This is good because for some imputation methods, such as certain types of multiple imputations, having fewer missingness patterns is helpful, as it requires fitting fewer models.
+
 ```{r}
-summary(train_df)
+na.counts = as.data.frame(((sapply(train_df, function(x) sum(is.na(x))))/nrow(train_df))*100)
+names(na.counts) = "counts"
+na.counts = cbind(variables = rownames(na.counts), data.frame(na.counts, row.names = NULL))
+
+na.counts %>% arrange(counts) %>% mutate(name = factor(variables, levels = variables)) %>%
+  ggplot(aes(x = name, y = counts)) + geom_segment( aes(xend = name, yend = 0)) +
+  geom_point(size = 4, color = "steelblue2") + coord_flip() + theme_bw() +
+  labs(title = "Proportion of Missing Data", x = "Variables", y = "% of Missing data") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))
 ```
 
-> We can see that apart from Brach Code rest all are numeric values
+##### Outlier
 
-#### We have 33 variables and 267 observations on StudentEvaluation dataset
+Further exploration reveal that some variables may be strongly influenced by outliers. An outlier is an observation that lies an abnormal distance from other values in a random sample. Outliers in data can distort predictions and affect the accuracy, therefore, these will need to be corrected by imputation.
 
-```{r}
-dim(test_df)
-```
+```{r outliers}
+temp = data.frame(variables = NA, outlier = NA)
+for (i in 2:33){
+  temp = rbind(temp, c(names(train_df)[i],
+                             length(boxplot(train_df[i], plot = FALSE)$out)))
+}
+temp[-1,] %>% kable(caption = "Predictive Variables with Outlier")
 
-```{r}
-summary(test_df)
-```
-
-#### Histogram to check skeweness
-
-```{r}
-
-plot_histogram(train_df)
-```
-
-> Based on above graph we can observe that only some of the variables are skewed. Some variables have outliers.
-
-#### Correlation
-
-```{r}
-corrplot(as.matrix(cor(subset(train_df, select = -c(Brand.Code)), use = "pairwise.complete")),method = "circle")
-```
-
-> The above graph suggests there there is high multi collinearity
-
-#### Outliers
-
-```{r}
-ggplot(data = reshape2::melt(train_df) , aes(x=variable, y=value)) + 
+ggplot(data = reshape2::melt(train_df) , aes(x = variable, y = value)) + 
 geom_boxplot(fill = 'deeppink4') +
   labs(title = 'Boxplot: Scaled Training Set',
        x = 'Variables',
-       y = 'Normalized_Values')+
-  theme(panel.background = element_rect(fill = 'grey'),axis.text.x=element_text(size=10, angle=90))
-```
-> Based on above graph we can see that most of the variables are skewed and some vaiables have outliers. 
-
-# Data Preparation
-
-### Missing data
-#### Check if we have missing data on the dataset
-
-```{r}
-library(Amelia)
-missmap(train_df, col = c("red", "lightgreen"))
+       y = 'Normalized Values')+
+  theme(panel.background = element_rect(fill = 'grey'),
+        axis.text.x = element_text(size = 10, angle = 90))
 ```
 
-> There are some missing values in the dataset.If we deeply observe some variables have lot of missing vales where some does not have any missing values.
+##### Correlation
 
-```{r}
-#Remove character field Brach Code
-modified_df <- data.matrix(train_df[,-1])
+The corrgram below graphically represents the correlations between the numeric predictor variables, when ignoring the missing variables. Most of the numeric variables are uncorrelated with one another, but there are a few highly correlated. 
+
+```{r corrgram, fig.width=7, fig.height=7}
+corrplot::corrplot(cor(train_df[,-1], use = 'complete.obs'),
+         method = 'ellipse', type = 'lower', order = 'hclust',
+         hclust.method = 'ward.D2')
+```
+
+Moreover, to build a smaller model without predictors with extremely high correlations, it is best to reduce the number of predictors such that there are no absolute pairwise correlations above 0.90. The list below shows only significant correlations (at 5% level) for the top 10 highest correlations by the correlation coefficient. The results show that these ten have a correlation of greater than 0.95.
+
+```{r corr}
+corr = cor(train_df[,-1], use = 'complete.obs')
+corr[corr == 1] = NA 
+corr[abs(corr) < 0.90] = NA 
+corr = na.omit(reshape::melt(corr))
+head(corr[order(-abs(corr$value)),], 10) %>% kable(caption = "Top 10 Highly Correlated Predictor Candidates")
+```
+
+#### Target Variable (pH)
+
+The response variable, `pH` has a couple of missing values. There is also a detection of outliers, which could explain the skewness in the variable. The plot below highlights that a majority of the pH level is less than 8.75.
+
+```{r tragetviz}
+train_df %>%
+  ggplot(aes(PH, fill = PH > 8.75)) + 
+  geom_histogram(bins = 30) +
+  theme_bw() +
+  theme(legend.position = 'center') +
+  labs(y = 'Count', title = 'pH Levels in Dataset') 
+```
+
+### Data Preparation
+
+#### Pre-Processing of Predictors
+
+Firstly, we will treat missing data and outlier by imputing them. Because it combines the standard linear regression and the nearest-neighbor imputation approach, we elected to fill in missing values of continuous variables by using the predictive mean matching imputation method. This will help to account for the uncertainty in the individual imputations. In addition, a near zero variable diagnoses is preformed on the predictors to identify if they have very few unique values relative to the number of samples and the ratio of the frequency of the most common value to the frequency of the second most common value is large. If true, these will be removed.
+
+```{r impute}
+# Train set
+processed_train_df = mice(train_df, method = 'pmm', print = FALSE)
+train_df_cleaned = complete(processed_train_df)
+
+predictors = nearZeroVar(train_df_cleaned)
+train_df_cleaned = train_df_cleaned[,-predictors]
+
+# Evaluation set
+processed_test_df = mice(test_df, method = 'pmm', print = FALSE)
+test_df_cleaned = complete(processed_test_df)
+
+predictors = nearZeroVar(test_df_cleaned)
+test_df_cleaned = test_df_cleaned[,-predictors]
+```
+
+#### Correlation 
+
+Next, to filter out highly correlated predictors, we remove those that have an absolute correlation coefficient greater than 0.90. 
+
+```{r corr_clean}
+# Train set
+tooHigh = findCorrelation(cor(train_df_cleaned[,-1]), 0.90)
+train_df_cleaned = train_df_cleaned[, -tooHigh]
+
+# Evaluation set
+tooHigh = findCorrelation(cor(test_df_cleaned[,-1]), 0.90)
+test_df_cleaned = test_df_cleaned[, -tooHigh]
+```
+
+#### Normality
+
+The data is then pre-processed to fulfill the assumption of normality using the Yeo-Johnson transformation (Yeo and Johnson, 2000). This technique attempts to find the value of lambda that minimizes the Kullback-Leibler distance between the normal distribution and the transformed distribution. This method has the advantage of working without having to worry about the domain of x. 
+
+```{r normality}
+# Train set
+processed_train_df = preProcess(train_df_cleaned[,-1], method = c("YeoJohnson"))
+train_df_cleaned[,-1] =  predict(processed_train_df, train_df_cleaned[,-1])
+
+# Evaluation set
+processed_test_df = preProcess(test_df_cleaned[,-1], method = c("YeoJohnson"))
+test_df_cleaned[,-1] =  predict(processed_test_df, test_df_cleaned[,-1])
+```
+
+### Training & Testing Split
+
+All the models will be trained on the same approximately 70% of the training set, reserving 30% for
+validation of which model to select for the pH estimation on the supplied evaluation set.
+
+```{r trainTestSplit}
+# Create training and testing split from training data
+set.seed(525)
+intrain = createDataPartition(train_df_cleaned$PH, p = 0.70, list = FALSE)
+
+# Train & Test predictor variables
+train.p = train_df_cleaned[intrain, ] %>% select(-PH)
+test.p = train_df_cleaned[-intrain, ] %>% select(-PH)
+
+# Train & Test response variable (pH)
+train.r = train_df_cleaned$PH[intrain]
+test.r = train_df_cleaned$PH[-intrain]
+```
+
+### Building the Models
+
+#### Model #1: Baseline Model
+
+We will start with a simple linear model to serve as a baseline. This includes all variables in the data set. 
+
+```{r baseline}
+# Baseline linear model
+baseline = lm(train.r ~ ., data = train.p)
+kable(summary(baseline)$coefficients, digits = 3L,
+      caption = 'Model 1 - Baseline Linear Regression Output')
+```
+
+We can immediately see that a few variables exceed the 0.05 p-value threshold for significance. This baseline model also only account for 39.7% of the variability of the data.
+
+#### Model #2: XGB
+
+Gradient boosting trees model is originally proposed by Friedman et al. The underlying algorithm of XGBoost is similar, specifically it is an extension of the classic gbm algorithm. By employing multi-threads and imposing regularization, XGBoost is able to utilize more computational power and get more accurate prediction. Please refer to this tutorial for the details of the model.
+
+
+```{r xgb.Tree, eval=false}
+set.seed(525) 
+# Convert sets into DMatrixes
+train.p.xgb = xgb.DMatrix(as.matrix(train.p[,-1]))
+train.r.xgb = train.r
+test.p.xgb = xgb.DMatrix(as.matrix(test.p[,-1]))
+test.r.xgb = test.r
+
+# Grid
+xgb.tree.grid = expand.grid(eta = c(.01), 
+                            nrounds = c(1000), 
+                            max_depth = c(6), 
+                            gamma = c(0), 
+                            colsample_bytree = c(.8),
+                            min_child_weight = c(.8),
+                            subsample = c(.8))
+
+xgb.dart.grid = expand.grid(eta = c(.01), 
+                            nrounds = c(1000), 
+                            gamma = c(.1), 
+                            skip_drop = c(.6), 
+                            rate_drop = c(.4), 
+                            max_depth = c(6), 
+                            colsample_bytree = c(.6), 
+                            min_child_weight = c(.6), 
+                            subsample = c(.6))
+
+# Tuning fits
+tuning_list = list(caretModelSpec(method = "xgbTree", tuneGrid = xgb.tree.grid),
+                   caretModelSpec(method = "xgbDART", tuneGrid = xgb.dart.grid))
+
+# Cross-validation method 
+trcontrol = trainControl(method = 'cv',
+                         number = 5,
+                         savePredictions = 'final',
+                         index = createFolds(train.r.xgb, 5),
+                         allowParallel = TRUE) 
+# 
+xgb_list = caretList(x = train.p.xgb,
+                     y = train.r.xgb,
+                     trControl = trcontrol,
+                     tuneList = tuning_list)
+```
+
+### Model Selection
+#### Model Selection Criteria
+
+In order to select the best model to make predictions, we looked at the following goodness of fit metrics:
+
+ 1. \(R^2\), which represents the proportion of the variance explained by the model
+ 2. *Root Mean Squared Error* (RMSE), which is the square root of the mean squared difference between the observation and the fitted value.
+ 3. *Akaike Information Criterion* (AIC), which is an information-criteria based  estimate of the Kullback-Leibler divergence from the current model to the "true" model. One of the nice results of the theory of information-criteria based measures is that there is included recognition of parsimony.
+ 
+We will look at RMSE and \(R^2\) as our metrics and select the model which performs best on both. If no model performs best on both, the AIC of the model results on the training set will be used to break the tie, as the AIC is an estimate of the average out-of-sample performance of the model. The remaining 20% of the historical data (i.e. predictors `test.p` and response `test.r`) will be used to determine the model performance.
+
+The table below highlights the performance criteria of all the models built. It is evident that
+
+```{r compTable}
+compTable = data.table(Models = c("Baseline", 
+                                  "XGB - Tree",
+                                  "XGB - Dart"),   # =--- add model names here
+                       R2 = double(6), 
+                       RMSE = double(6),
+                       TrainAIC = double(6))
+```
+
+```{r validateBaseline}
+# Model 1: Baseline
+# Prediction
+baseline.pred = round(predict(baseline, newdata = test.p))
+# Accuracy Statistics
+compTable[1, 2] = R2(baseline.pred, test.r)
+compTable[1, 3] = RMSE(baseline.pred, test.r)
+compTable[1, 4] = MAE(baseline.pred, test.r)
+```
+
+```{r validateXGB_Tree}
+# Model 2 - XGB Tree
+# Prediction
+xgb.tree.pred = round(predict(xgb.tree, newdata = test.p.xgb))
+# Accuracy Statistics
+compTable[2, 2] = R2(xgb.tree.pred, test.r.xgb)
+compTable[2, 3] = RMSE(xgb.tree.pred, test.r.xgb)
+compTable[2, 4] = MAE(xgb.tree.pred, test.r.xgb)
+```
+
+```{r validateXGB_Dart}
+# Model 3 - XGB Dart
+# Prediction
+xgb.dart.pred = round(predict(xgb.dart, newdata = test.p.xg))
+# Accuracy Statistics
+compTable[3, 2] = R2(xgb.dart.pred, test.r.xgb)
+compTable[3, 3] = RMSE(xgb.dart.pred, test.r.xgb)
+compTable[3, 4] = MAE(xgb.dart.pred, test.r.xgb)
 ```
 
 
-#### Impute missing values
+### Model Test Results
 
-```{r}
-processed_train_df <- preProcess(modified_df, method = c("bagImpute"))
-processed_train_df
-student_traindf_preprocessed <-  predict(processed_train_df, modified_df)
+Based on the performance test, it was decided that the `BEST MODEL HERE` model is the optimal model. With the test set data processed identically to the training set, it will be used to make the pH prediction of beverages given the evaluation data. Since the number of cases needs to be integral the predicted values will be rounded to the nearest integer.
+
+
+#### Save pH Predictions
+
+train_df_cleaned is the cleaned evaluation set
+
+#### Works Cited
+
+ 1. https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html
+
+### Code Appendix
+
+```{r setup2, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 
-
-#### After imputations check if there is any missing data
-
-```{r}
-missmap(as.data.frame(student_traindf_preprocessed), col = c("red", "lightgreen"))
+```{r rpackages}
 ```
-
+```{r loaddata}
+```
+```{r sumstat}
+```
+```{r outliers}
+```
