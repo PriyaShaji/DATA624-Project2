@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo=FALSE, error=FALSE, warning=FALSE, message=FALSE, fig
 
 ### OVERVIEW
 
-Due to new regulations by ABC Beverage, the company leadership requires that the production team have a better understand of the manufacturing process, the predictive factors and their relationship to the pH of the beverages. Therefore, this project is an effort to find the optimal predictive variables related to the pH of the beverages and evaluate the accuracy of the predictive model for pH of beverages with rigorous statistical testing.
+Due to new regulations by ABC Beverage, the company leadership requires that the production team have a better understanding of the manufacturing process, the predictive factors and their relationship to the pH of the beverages. Therefore, this project is an effort to find the optimal predictive variables related to the pH of the beverages and evaluate the accuracy of the predictive model for pH of beverages with rigorous statistical testing.
 
 The selection of a method depends on many factors - the context of the predictions, the relevance of the historical data given, the degree of accuracy, etc. As a result, these factors are cross-validated and examined for the potentially greater accuracy model at minimal cost.
 
@@ -37,6 +37,7 @@ library(mice)
 library(corrplot)
 library(xgboost)
 library(Cubist)
+library(randomForest)
 ```
 
 ### DATA EXPLORATION 
@@ -351,7 +352,8 @@ In order to select the best model to make predictions, we looked at the followin
 
 We will look at \(R^2\) and RMSE as our metrics and select the model which performs best on both. If no model performs best on both, the MAE of the model results on the training set will be used to break the tie. The remaining 20% of the historical data (i.e. predictors `test.p` and response `test.r`) will be used to determine the model performance.
 
-The table below highlights the performance criteria of all the models built. It is evident that
+The table below highlights the performance criteria of all the models built. It is evident that Random Forest is the best model as it has the lowest RMSE value compared to all other models.
+
 
 ```{r compTable}
 set.seed(525)
@@ -372,7 +374,25 @@ kable(compTable, caption = "Performance Metric for All Models")
 
 #### Variable Importances
 
-<--- ADD ANY OTHER FACTOR THAT CAN BE USE TO SELECT THE BEST MODEL --->
+Let's display informative variables picked by Random Forest model using `varImp` since it has best fit and also lowest RMSE.
+
+
+```{r}
+varImp(rfModel)
+```
+
+
+Random Forest model picked the most informative variables among which top three variables are `Mnf.Flow`, `Brand.Code` and `Usage.cont`. These are the variables which are most related to the pH of beverages.
+
+Variable importance plot 
+
+```{r}
+dotPlot(varImp(rfModel), top=10)
+```
+
+
+Therefore, `Mnf.Flow` is the most important variable followed by `Brand.Code` , affecting pH value of beverages.
+
 
 ### MODEL SELECTION
 
