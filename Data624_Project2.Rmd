@@ -293,14 +293,51 @@ plot(cubModel, main = "RMSE of Cubist Tree Model")
 
 RMSE was used to select the optimal model using the smallest value. The best tune for the cubist model which resulted in the smallest root mean squared error is with 20 committees and correct the prediction using the 9-nearest neighbors. It has RMSE = 0.117, and $R^2$ = 0.558. In this case, it does account for the largest portion of the variability in the data than all other variables, and it produces the smallest error which makes it the best fit.
 
-<--- BUILD ANY ADDITIONAL MODEL HERE --->
-THE MORE THE MERRIER, ADD PERFORMANCE METRIC BELOW
 
-#### Model #4:
 
-#### Model #5:
+#### Model #4: Partial Least Squares
 
-#### Model #6:
+
+```{r}
+set.seed(393)
+plsModel = train(x = train.p,
+                  y = train.r,
+                  method = "pls",
+                  metric="rmse",
+                 tuneLength = 20,
+                 trControl= trainControl(method="cv"),
+                 preProcess=c('center','scale'))
+```
+```{r cub.fig, fig.height=4, fig.width=8}
+plot(plsModel, main = "RMSE of PLS Model")
+```
+
+
+#### Model #5: Gradient Boosting
+
+```{r}
+set.seed(20350)
+grid <- expand.grid(n.trees=c(50, 100, 150, 200), 
+                    interaction.depth=c(1, 5, 10, 15), 
+                    shrinkage=c(0.01, 0.1, 0.5), 
+                    n.minobsinnode=c(5, 10, 15))
+gbm_m <- train(x = train.p,y = train.r, method = 'gbm',tuneGrid = grid, verbose = FALSE)
+
+plot(gbm_m, main = "RMSE of Gradient Boosting Model")
+```
+
+
+#### Model #6: Support Vector Machine
+
+
+```{r}
+set.seed(9988)
+rfModel <- train(x = train.p,y = train.r,
+                  method='rf', tuneLength=4)
+
+plot(rfModel, main = "RMSE of SVM Model")
+```
+
 
 
 ### MODEL EVALUATION
@@ -320,9 +357,15 @@ The table below highlights the performance criteria of all the models built. It 
 set.seed(525)
 marsPred = predict(marsModel, newdata = test.p)
 cubPred = predict(cubModel , newdata = test.p)
+plsPred = predict(plsModel, newdata= test.p)
+gradPred = predict(gbm_m, newdata = test.p)
+rfPred = predict(rfModel, newdata= test.p)
 
 compTable = data.frame(rbind(MARS = postResample(pred = marsPred, obs = test.r),
-                             CUBIST = postResample(pred = cubPred, obs = test.r)))
+                             CUBIST = postResample(pred = cubPred, obs = test.r),
+                             PLS = postResample(pred = plsPred, obs= test.r),
+                             GRADIENT_BOOSTING = postResample(pred= gradPred, obs=test.r),
+                             Random_Forest = postResample(pred=rfPred, obs = test.r)))
 
 kable(compTable, caption = "Performance Metric for All Models")
 ```
