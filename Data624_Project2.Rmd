@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo=FALSE, error=FALSE, warning=FALSE, message=FALSE, fig
 ### OVERVIEW
 
 Due to new regulations by ABC Beverage, the company leadership requires that the 
-production team have a better understand of the manufacturing process, the 
+production team have a better understanding of the manufacturing process, the 
 predictive factors and their relationship to the pH of the beverages. Therefore, 
 this project is an effort to find the optimal predictive variables related to the 
 pH of the beverages and evaluate the accuracy of the predictive model for pH of 
@@ -29,7 +29,7 @@ beverages with rigorous statistical testing.
 The selection of a method depends on many factors - the context of the predictions, 
 the relevance of the historical data given, the degree of accuracy, etc. As a 
 result, these factors are cross-validated and examined for the potentially greater 
-accuracy model at minimal cost.
+accuracy model at a minimal cost.
 
 ### R PACKAGES
 
@@ -55,7 +55,7 @@ library(vip)
 
 ### DATA EXPLORATION 
 
-The data set is a historic data containing predictors associated to the pH and is 
+The data set is historic data containing predictors associated with the pH and is 
 provided in an excel file. We will utilize this historic data set to analyze and 
 predict the pH of beverages. 
 
@@ -98,7 +98,7 @@ eval_df$Brand.Code = as.factor(eval_df$Brand.Code)
 #### Predictive Variables
 
 There are `r ntrobs` observations of 31 numeric predictor variables and 1 factor 
-predictor variables, namely `Brand.Code`. All other variables provides measurements 
+predictor variable, namely `Brand.Code`. All other variables provide measurements 
 for the manufacturing process of each brand of beverage.
 
 ##### Summary Statistic
@@ -108,8 +108,8 @@ initial observations. The data set does not have complete cases, thus, there is
 a need for imputation. Some variables are highly skewed, such as `MFR`, 
 `Temperature`, and `Oxygen.Filler`, which will need data transformation to 
 satisfy the assumption of normality. Lastly, the `Hyd.Pressure` variables appear 
-to be near-zero variance predictors given that zero account for more than 30% of 
-these variables. Such zero variance predictor will never be chosen for a split 
+to be near-zero variance predictors given that zero accounts for more than 30% of 
+these variables. Such a zero variance predictor will never be chosen for a split 
 since it offers no possible predictive information. 
 
 \small
@@ -124,7 +124,7 @@ kable(describe(train_df)[,-c(1,6,7,13)],
 
 The graph below indicates the amount of missing data the training data contains. 
 It appears that more than 8% of the missing data is from the `MFR` variable. This 
-further suggest that 79% are complete. There are no missingness patterns, and 
+further suggests that 79% are complete. There are no missingness patterns, and 
 their overall proportion is not extreme. This is good because for some imputation 
 methods, such as certain types of multiple imputations, having fewer missingness 
 patterns is helpful, as it requires fitting fewer models.
@@ -138,14 +138,14 @@ na.counts = cbind(variables = rownames(na.counts),
 
 na.counts %>% arrange(counts) %>% mutate(name = factor(variables, levels = variables)) %>%
   ggplot(aes(x = name, y = counts)) + geom_segment( aes(xend = name, yend = 0)) +
-  geom_point(size = 4, color = "steelblue2") + coord_flip() + theme_bw() +
+  geom_point(size = 2, color = "steelblue2") + coord_flip() + theme_bw() +
   labs(title = "Proportion of Missing Data", x = "Variables", y = "% of Missing data") +
   scale_y_continuous(labels = scales::percent_format(scale = 1))
 ```
 
 ##### Outlier
 
-Further exploration reveal that some variables may be strongly influenced by 
+Further exploration reveals that some variables may be strongly influenced by 
 outliers. An outlier is an observation that lies an abnormal distance from other 
 values in a random sample. Outliers in data can distort predictions and affect 
 the accuracy, therefore, these will need to be corrected by imputation.
@@ -162,19 +162,20 @@ row.names(temp) = NULL
 kable(temp, caption = "Predictive Variables with Outlier")
 
 ggplot(data = reshape2::melt(train_df) , aes(x = variable, y = log(abs(value)))) + 
-geom_boxplot(fill = 'deeppink4') +
+geom_boxplot(fill = 'steelblue2', outlier.alpha = 0.75) +
   labs(title = 'Boxplot: Scaled Training Set',
        x = 'Variables',
-       y = 'log-Normalized Values')+
-  theme(panel.background = element_rect(fill = 'grey'),
-        axis.text.x = element_text(size = 10, angle = 90))
+       y = 'log-Normalized Values') +
+  theme(panel.background = element_rect(fill = 'white'),
+        axis.text.x = element_text(size = 10, angle = 90)) 
 ```
 
 ##### Correlation
 
 The corrgram below graphically represents the correlations between the numeric 
 predictor variables, when ignoring the missing variables. Most of the numeric 
-variables are uncorrelated with one another, but there are a few highly correlated. 
+variables are uncorrelated with one another, but there are a few highly correlated
+pairs. 
 
 ```{r corrgram, fig.width=6, fig.height=6}
 corrplot::corrplot(cor(train_df[,-1], use = 'complete.obs'),
@@ -210,7 +211,7 @@ train_df %>%
   geom_histogram(bins = 30) +
   theme_bw() +
   theme(legend.position = 'center') +
-  labs(y = 'Count', title = 'pH Levels in Dataset') 
+  labs(y = 'Count', title = 'pH Levels of Training Set') 
 ```
 
 ### DATA PREPARATION
@@ -218,11 +219,11 @@ train_df %>%
 #### Pre-Processing of Predictors
 
 Firstly, we will treat missing data and outlier by imputing them. The random 
-forest (RF) missing data algorithms is implemented because i is able to handle 
+forest (RF) missing data algorithms is implemented because this can handle 
 mixed types of missing data, adaptable to interactions and non-linearity, and 
 they have the potential to scale to big data settings. This will help to account 
-for the uncertainty in the individual imputations. In addition, a near zero 
-variable diagnoses is preformed on the predictors to identify if they have very few 
+for the uncertainty in the individual imputations. In addition, a near-zero 
+variable diagnostics are performed on the predictors to identify if they have very few 
 unique values relative to the number of samples and the ratio of the frequency 
 of the most common value to the frequency of the second most common value is 
 large. If true, these will be removed.
@@ -318,7 +319,7 @@ test.r = train_df_cleaned$PH[-intrain]
 
 ### BUILDING THE MODELS
 
-The relationship among these manufacturing processes with pH is not known. 
+The relationship between these manufacturing processes with pH is not known. 
 Therefore, we will be investigating various regression and classification families. 
 
 #### Model #1: Baseline Model
@@ -338,7 +339,7 @@ We can immediately see that a few variables exceed the 0.05 p-value threshold
 for significance. The intercept itself suggests that with no information on the
 manufacturing processes, a beverage is likely to have a pH balance of a killer 
 369! This baseline model also only account for 40.4% of the variability of the 
-data. Clearly, there is a need for a better model. We will focus and select our 
+data. There is a need for a better model. We will focus and select our 
 model based on how well it explains that data and the accuracy of the results. 
 
 #### Model #2: Multivariate Adaptive Regression Splines
@@ -383,8 +384,8 @@ kable(summary(marsModel$finalModel)$coefficients,
 \normalsize
 
 Having no other information, the MARS model expects a beverage pH level of about 
-8.40. This means that the model identifies factors which lean more to decreasing 
-the pH than to increasing it. It is also less than the expected value with a 
+8.40. This means that the model identifies factors that lean more to decreasing 
+the pH than to increase it. It is also less than the expected value with a 
 difference of 0.15.
 
 Contributing coefficients are those which lie within the 95% level of significance.
@@ -392,7 +393,7 @@ A positive coefficient indicates that as the value of the predictor increases, t
 response variable also tends to increase. A negative coefficient suggests that as 
 the predictor increases, the response variable tends to decrease. In addition to 
 pruning the number of knots, the potential interactions between different hinge 
-functions are illustrated. There is quite a few interaction terms between multiple 
+functions are illustrated. There are quite a few interaction terms between multiple 
 hinge functions. 
 
 #### Model #3: Cubist
@@ -445,9 +446,9 @@ components instead of on the original data. It is useful when the predictors
 have high correlation. Another advantage of PLS is that it does not assume that 
 the predictors are fixed and predictors are measured with errors. It makes the 
 model more robust. It is ideal to use PLS in this situation as there are many 
-predictors and not enough sample size. Also there are high correlations among 
+predictors and not enough sample size. Also, there are high correlations among 
 some of the predictors. In this model, we have trained the data and later we 
-are going to evaluate the performance on test set to see how model is performing 
+are going to evaluate the performance on the test set to see how the model is performing 
 based on RMSE and r-squared values. The data is also centered and scaled 
 through preProcess function. 
 
@@ -477,7 +478,7 @@ A benefit of the gradient boosting framework is that a new boosting algorithm
 does not have to be derived for each loss function but at the same time it is a
 greedy algorithm and it can over-fit a training data set quickly. It is quite 
 fascinating for accuracy and speed especially with large and complex data and 
-one of the mostly used techniques among the data scientists that is why we are 
+one of the most used techniques among the data scientists that is why we are 
 going to use it and see if it performs well in our situation. 
 
 ```{r gbm, eval = FALSE}
@@ -508,14 +509,14 @@ and the minimum number of observations in trees’ terminal nodes is 5.
 
 #### Model #6: Random Forest
 
-Random forest is a machine learning algorithm that contains forest with number
+Random forest is a machine learning algorithm that contains a forest with number
 of trees. These trees are called decision trees therefore it consists of random 
-collection of forest tree. It can be used for both classification and regression 
+collection of forest trees. It can be used for both classification and regression 
 easily. The best part of using random forest is that it provides higher accuracy 
-through cross validation. It handles the missing values and maintain the accuracy 
+through cross validation. It handles the missing values and maintains the accuracy 
 of a large proportion of data. It would not allow over-fitting if there are more trees 
-in the model and it has power to handle any data set no matter if it is small or 
-large with any dimensionality. It seems as a wonderful algorithm to use in our 
+in the model and it has the power to handle any data set no matter if it is small or 
+large with any dimensionality. It seems like a wonderful algorithm to use in our 
 situation. We are going to use random forest regression and then compare its 
 performance with the other models to select the best model out of them. It is 
 highly used in medicines, chemistry, stock market, banking sector and e-commerce. 
@@ -555,12 +556,12 @@ affecting pH value of beverages.
 #### Model #7: Ensemble Regression
 
 The last model built is an ensemble regression. The goal of ensemble regression
-is to combine several models in order to improve the prediction accuracy in 
-learning problems with a numerical target variable. There is three phase of 
+is to combine several models to improve the prediction accuracy in 
+learning problems with a numerical target variable. There are three phases of 
 processing ensemble learning. These include the generation phase, the pruning 
 phase, and the integration phase. Given a list of caret models, we built a 
 unction that can be used to specify a higher-order model to learn how to best 
-combine the predictions of sub-models together. The 4 sub-models will the best 
+combine the predictions of sub-models. The 4 sub-models will the best 
 four models created thus far based on their RMSE. More specifically, these were:
 
 * Multivariate Adaptive Regression Splines
@@ -604,7 +605,7 @@ ensembleModel = caretStack(model_list,
 ```{r}
 ensembleModel = readRDS("ensembleModel.rds")
 ```
-```{r ensemble_imp, fig.height=4}
+```{r ensemble_imp, fig.height=3}
 plot(varImp(ensembleModel$ens_model), main = "Model Importance")
 ```
 
@@ -615,8 +616,8 @@ RMSE and largest $R^2$.
 ### MODEL EVALUATION
 #### Model Selection Criteria
 
-In order to select the best model to make predictions, we looked at the following
-goodness of fit metrics:
+To select the best model to make predictions, we looked at the following
+goodness-of-fit metrics:
 
  1. \(R^2\), which represents the proportion of the variance explained by the model
  2. *Root Mean Squared Error* (RMSE), which is the square root of the mean squared
@@ -627,7 +628,7 @@ goodness of fit metrics:
  
 We will look at \(R^2\) and RMSE as our metrics and select the model which performs
 best on both. If no model performs best on both, the MAE of the model results on 
-the training set will be used to break the tie. The remaining 20% of the historical 
+the training set will be used to break the tie. The remaining 30% of the historical 
 data (i.e. predictors `test.p` and response `test.r`) will be used to determine 
 the model performance.
  
@@ -642,9 +643,9 @@ bwplot(resamples(fits), main = "Comparisons of All Models")
 
 After fitting a multi-linear, MARS, cubist, partial least squared, GBM, and random
 forest model to the training data, it appears that a random forest model is well 
-suited for modeling the data. This model outperform the other linear and tree-based 
+suited for modeling the data. This model outperforms the other linear and tree-based 
 models in every resampling performance metric. The RMSE and $R^2$ resampling 
-performance metrics of the PLS model are superior to the model however. 
+performance metrics of the PLS model are superior to the model, however. 
 
 ```{r compTable}
 set.seed(525)
@@ -667,7 +668,7 @@ kable(compTable, digits = 3L, caption = "Performance Metric for All Models")
 
 Adding the `ensemble` model to this list, the table highlights the performance 
 criteria for all the models built. For exceptional prediction quality, a meta-
-algorithm such as the `ensemble` method prove to be beneficial since it combine 
+algorithm such as the `ensemble` method proves to be beneficial since it combine 
 several learning techniques into one predictive model in order to decrease 
 variance, bias, and improve predictions. This meta-model outperforms the other 
 linear, and tree-based models in every resampling performance metric, and it
@@ -677,7 +678,7 @@ Typically, for predicting physical processes, $R^2$ should be greater than 50%,
 as this only explains about 29% of the standard deviation. The model with both 
 the smallest errors and account for the largest proportion of the data variability 
 is the ensemble model, RMSE = 0.100 and $R^2$ = 0.674. From the descriptive statistic, 
-it is clear that the predictions are as similar to the actual values. The predictions 
+it is clear that the predictions are similar to the actual values. The predictions 
 are consistent throughout the range of pH. 
 
 ```{r test_act.vs.pred_table}
@@ -695,14 +696,15 @@ ggplot(data.frame(prediction = predict(ensembleModel, newdata = test.p),
   geom_smooth(aes(x = prediction, y = actual)) +
   labs(title = "Plot of Actual vs Prediction Values", 
        subtitle = "using the Ensemble Model") +
-  geom_text(x = 8.75, y = 8, label = "RMSE = 0.10\n R-squared = 0.67")
+  geom_text(x = 8.75, y = 8, label = "RMSE = 0.10\n R-squared = 0.67") +
+  theme_bw()
 ```
 
 Because the models are weighted such that predictions are maximized, consistent 
-quality is expected. If a model predicts better at lower PH, it will be 
+quality is expected. If a model predicts better at lower pH, it will be 
 up-weighted over that specific range. Therefore, according to this data set and 
 performance metrics, we confidently say that `Model #7 - Ensemble Model` is the 
-best model based on all criteria that will be use to predict the pH levels of 
+best model based on all criteria that will be used to predict the pH levels of 
 the evaluation set.
 
 #### The Optimal Model
@@ -765,7 +767,7 @@ eval_df_cleaned %>%
   geom_histogram(bins = 30) +
   theme_bw() +
   theme(legend.position = 'center') +
-  labs(y = 'Count', title = 'pH Levels in Dataset') 
+  labs(y = 'Count', title = 'Predicted pH Levels') 
 ```
 
 #### Save pH Predictions
