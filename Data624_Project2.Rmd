@@ -299,6 +299,9 @@ RMSE was used to select the optimal model using the smallest value. The best tun
 #### Model #4: Partial Least Squares
 
 
+
+Partial Least Squares is a technique which minimizes the predictors to a smaller set of uncorrelated components and performs least squares regression on these components instead of on the original data. It is useful when the predictors have high correlation. Another advantage of PLS is that it does not assume that the predictors are fixed and predictors are measured with errors. It makes the model more robust. It is ideal to use PLS in this situation as there are many predictors and not enough sample size. Also there are high correlations among some of the predictors. In this model, we have trained the data and later we are going to evaluate the performance on test set to see how model is performing based on RMSE and r-square's values. The data is also centered and scaled through preProcess function. 
+
 ```{r}
 set.seed(393)
 plsModel = train(x = train.p,
@@ -316,6 +319,14 @@ plot(plsModel, main = "RMSE of PLS Model")
 
 #### Model #5: Gradient Boosting
 
+
+Gradient boosting is one of the most powerful techniques for building predictive models. Gradient boosting involves three elements: <br>
+1. A loss function to be optimized <br>
+2. A weak learner to make predictions <br>
+3. An additive model to add weak learners to minimize the loss function.  <br>
+
+A benefit of the gradient boosting framework is that a new boosting algorithm does not have to be derived for each loss function but at the same time it is a greedy algorithm and it can overfit a training dataset quickly. It is quite fascinating for accuracy and speed especially with large and complex data and one of the mostly used techniques among the data scientists that's why we are going to use it and see if it performs well in our situation. 
+
 ```{r}
 set.seed(20350)
 grid <- expand.grid(n.trees=c(50, 100, 150, 200), 
@@ -328,7 +339,10 @@ plot(gbm_m, main = "RMSE of Gradient Boosting Model")
 ```
 
 
-#### Model #6: Support Vector Machine
+#### Model #6: Random Forest
+
+
+Random forest is a machine learning algorithm that contains forest with number of trees. These trees are called decision trees therefore it consists of random collection of forest tree. It can be used for both classification and regression easily. The best part of using random forest is that it provides higher accuracy through cross validation. It handles the missing values and maintain the accuracy of a large proportion of data. It won't allow over-fitting if there are more trees in the model and it has power to handle any dataset no matter if it is small or large with any dimensionality. It seems as a wonderful algorithm to use in our situation. We are going to use random forest regression and then compare its performance with the other models to select the best model out of them. It is highly used in medicines, chemistry, stock market, banking sector and e-commerce. 
 
 
 ```{r}
@@ -354,6 +368,7 @@ We will look at \(R^2\) and RMSE as our metrics and select the model which perfo
 
 The table below highlights the performance criteria of all the models built. It is evident that Random Forest is the best model as it has the lowest RMSE value compared to all other models.
 
+The table below highlights the performance criteria of all the models built. Although RMSE is a preferred metric for performance evaluation but in our case but we will touch base with other performance metrics too to compare their performances across the others. Below tables shows all the RMSE, Rsquared and MAE values for all 5 models other than base model. Based on our data, we were expecting PLS model to be a potential model as a high performer as the dataset is comparatively small in terms of sample size but a lot of predictors. Result shows that PLS performed worst as compared with others with RMSE value of 0.133, rsquared value of 0.41 and MAE value of 0.103. These values are although not significantly different from the other models but Random Forest seems to have least RMSE and MAE which are 0.0997 and 0.0716 respectively. Gradient Boosting seems to be second best in terms of performance followed by MARS, Cubist and PLS. 
 
 ```{r compTable}
 set.seed(525)
@@ -395,6 +410,8 @@ Therefore, `Mnf.Flow` is the most important variable followed by `Brand.Code` , 
 
 
 ### MODEL SELECTION
+
+Based on all the values of r-square, RMSE and MAE we are going to choose Random Forest. It has the least values of RMSE and MAE and highest R-square among the others. Random Forest works great with any kind of data either if it it small or large. Overfitting is not a problem here as it has better accuracy. According to this dataset and performance metrics, we would confidently say that Model 6 - Random Forest is a model model based on all criteria. 
 
 
 ### PREDICTION RESULT
